@@ -1,0 +1,66 @@
+from flask import Flask, request, jsonify
+import json
+from datetime import datetime, timedelta
+import os
+
+app = Flask(__name__)
+EVENTS_FILE = 'events.json'
+
+# Load events from file
+def load_events():
+    if os.path.exists(EVENTS_FILE):
+        with open(EVENTS_FILE, 'r') as f:
+            return json.load(f)
+    return []
+
+# Save events to file
+def save_events(events):
+    with open(EVENTS_FILE, 'w') as f:
+        json.dump(events, f, default=str)
+
+# Initialize events
+events = load_events()
+
+@app.route('/events', methods=['POST'])
+def create_event():
+    data = request.json
+    event = {
+        'id': len(events) + 1,
+        'title': data['title'],
+        'description': data['description'],
+        'start_time': datetime.fromisoformat(data['start_time']),
+        'end_time': datetime.fromisoformat(data['end_time'])
+    }
+    events.append(event)
+    save_events(events)
+    return jsonify(event), 201
+
+@app.route('/events', methods=['GET'])
+def list_events():
+    sorted_events = sorted(events, key=lambda x: x['start_time'])
+    return jsonify(sorted_events), 200
+
+@app.route('/events/<int:event_id>', methods=['PUT'])
+def update_event(event_id):
+    data = request.json
+    for event in events:
+        if event['id'] == event_id:
+            event.update({
+                'title': data.get('title', event['title']),
+                'description': data.get('description', event['description']),
+                'start_time': datetime.fromisoformat(data.get('start_time', event['start_time'])),
+                'end_time': datetime.fromisoformat(data.get('end_time', event['end_time']))
+            })
+            save_events(events)
+            return jsonify(event), 200
+    return jsonify({'error': 'Event not found'}), 404
+
+@app.route('/events/<int:event_id>', methods=['DELETE'])
+def delete_event(event_id):
+    global events
+    events = [event for event in events if event['id'] != event_id]
+    save_events(events)
+    return jsonify({'message': 'Event deleted'}), 200
+
+if __name__ == '__main__':
+    app.run(debug=True)
